@@ -135,7 +135,7 @@ class PyTic(object):
                 return 0
         if not self.device:
             self._logger.error("Serial number device not found.")
-            return 1
+            raise ValueError("TIC serial number %r not found; options are %r." % (serial_number, self.list_connected_device_serial_numbers()))
 
 
 class PyTic_Variables(object):
