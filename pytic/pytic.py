@@ -78,12 +78,12 @@ class PyTic(object):
         # Driver Locations (x64)
         file_path = os.path.dirname(os.path.abspath(__file__))
         #file_path = file_path[:-len('pytic')]
-		if platform.architecture()[0] == '32bit':
-			self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libusbp-1.dll")
-			self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libpololu-tic-1.dll")
-		else:
-			self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libusbp-1.dll")
-			self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libpololu-tic-1.dll")
+        if platform.architecture()[0] == '32bit':
+            self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libusbp-1.dll")
+            self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libpololu-tic-1.dll")
+        else:
+            self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libusbp-1.dll")
+            self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libpololu-tic-1.dll")
 
     def _create_tic_command_attributes(self):
         for c in self._commands:
