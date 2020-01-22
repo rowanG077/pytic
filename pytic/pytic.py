@@ -124,7 +124,7 @@ class PyTic(object):
         if not self._devcnt.value:
             print("No Tic devices connected.")
         for i in range(0, self._devcnt.value):
-            ticdev = self._dev_pp[0][i]
+            ticdev = self._dev_pp[i][0]
             tic_list.append(ticdev.serial_number.decode('utf-8'))
             # print("Tic Device #: {0}, Serial #: {1}".format(i, sn))
         return tic_list
@@ -132,8 +132,8 @@ class PyTic(object):
     def connect_to_serial_number(self, serial_number):
         self._list_connected_devices()
         for i in range(0, self._devcnt.value):
-            if serial_number == self._dev_pp[0][i].serial_number.decode('utf-8'):
-                self.device = self._dev_pp[0][i]
+            if serial_number == self._dev_pp[i][0].serial_number.decode('utf-8'):
+                self.device = self._dev_pp[i][0]
                 self._tic_handle_open()
                 self.variables = PyTic_Variables(self.handle, (self.usblib, self.ticlib))
                 self.settings = PyTic_Settings(self.handle, (self.usblib, self.ticlib), self.variables.product)
