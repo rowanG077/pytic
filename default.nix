@@ -31,11 +31,4 @@ in buildPythonPackage rec {
   shellHook = ''
     export LD_LIBRARY_PATH=${lib.makeLibraryPath ["${polulu-usb}" "${polulu-tic}"]}
   '';
-
-  # meta = with lib; {
-  #   homepage = "https://github.com/pytoolz/toolz";
-  #   description = "List processing tools and functional utilities";
-  #   license = licenses.bsd3;
-  #   maintainers = with maintainers; [ fridh ];
-  # };
 }
