@@ -78,12 +78,20 @@ class PyTic(object):
         # Driver Locations (x64)
         file_path = os.path.dirname(os.path.abspath(__file__))
         #file_path = file_path[:-len('pytic')]
-        if platform.architecture()[0] == '32bit':
-            self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libusbp-1.dll")
-            self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libpololu-tic-1.dll")
+
+        os_name = platform.system()
+        if os_name == "Linux":
+            self.usblib = cdll.LoadLibrary("libusbp-1.so") 
+            self.ticlib = cdll.LoadLibrary("libpololu-tic-1.so") 
+        elif os_name == "Windows":
+            if platform.architecture()[0] == '32bit':
+                self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libusbp-1.dll")
+                self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win32\\libpololu-tic-1.dll")
+            else:
+                self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libusbp-1.dll")
+                self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libpololu-tic-1.dll")
         else:
-            self.usblib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libusbp-1.dll")
-            self.ticlib = cdll.LoadLibrary(file_path+"\\drivers\\Win64\\libpololu-tic-1.dll")
+            raise EnvironmentError("Only linux and windows are supported by this library.")
 
     def _create_tic_command_attributes(self):
         for c in self._commands:
@@ -141,7 +149,6 @@ class PyTic(object):
         if not self.device:
             self._logger.error("Serial number device not found.")
             raise ValueError("TIC serial number %r not found; options are %r." % (serial_number, self.list_connected_device_serial_numbers()))
-
 
 class PyTic_Variables(object):
     def __init__(self, device_handle, driver_handles):
@@ -205,7 +212,6 @@ class PyTic_Variables(object):
             if ((e_bit_mask >> tc[code]) & 1):
                 self._logger.error(code)
 
-        
 class PyTic_Settings(object):
     def __init__(self, device_handle, driver_handles, product):
         self.usblib, self.ticlib = driver_handles
