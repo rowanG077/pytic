@@ -29,9 +29,10 @@ with ((import (fetchTarball {
     polulu-usb = polulu-usb;
   };
 
-in pytic.overrideAttrs (old: {
-  buildInputs = old.buildInputs ++ [
+in pkgs.mkShell {
+  buildInputs = [
     nodePackages.pyright
     vscode-with-extensions
+    pytic
   ];
-})
+}
