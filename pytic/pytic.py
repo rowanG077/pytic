@@ -3,24 +3,70 @@ import os
 import yaml
 from ctypes import *
 from time import sleep
+from typing import List
 from .pytic_protocol import tic_constant as tc
 from .pytic_structures import *
 from functools import wraps, partial
 import logging
 import platform
 
+from enum import Enum, Flag
+
+class TicErrorStatus(Flag):
+    TIC_ERROR_INTENTIONALLY_DEENERGIZED = 1 << tc["TIC_ERROR_INTENTIONALLY_DEENERGIZED"]
+    TIC_ERROR_MOTOR_DRIVER_ERROR = 1 << tc["TIC_ERROR_MOTOR_DRIVER_ERROR"]
+    TIC_ERROR_LOW_VIN = 1 << tc["TIC_ERROR_LOW_VIN"]
+    TIC_ERROR_KILL_SWITCH = 1 << tc["TIC_ERROR_KILL_SWITCH"]
+    TIC_ERROR_REQUIRED_INPUT_INVALID = 1 << tc["TIC_ERROR_REQUIRED_INPUT_INVALID"]
+    TIC_ERROR_SERIAL_ERROR = 1 << tc["TIC_ERROR_SERIAL_ERROR"]
+    TIC_ERROR_COMMAND_TIMEOUT = 1 << tc["TIC_ERROR_COMMAND_TIMEOUT"]
+    TIC_ERROR_SAFE_START_VIOLATION = 1 << tc["TIC_ERROR_SAFE_START_VIOLATION"]
+    TIC_ERROR_ERR_LINE_HIGH = 1 << tc["TIC_ERROR_ERR_LINE_HIGH"]
+    TIC_ERROR_SERIAL_FRAMING = 1 << tc["TIC_ERROR_SERIAL_FRAMING"]
+    TIC_ERROR_SERIAL_RX_OVERRUN = 1 << tc["TIC_ERROR_SERIAL_RX_OVERRUN"]
+    TIC_ERROR_SERIAL_FORMAT = 1 << tc["TIC_ERROR_SERIAL_FORMAT"]
+    TIC_ERROR_SERIAL_CRC = 1 << tc["TIC_ERROR_SERIAL_CRC"]
+    TIC_ERROR_ENCODER_SKIP = 1 << tc["TIC_ERROR_ENCODER_SKIP"]
+
+class TicCommError(Enum):
+    # There were problems allocating memory.  A memory shortage might be the
+    # root cause of the error, or there might be another error that is masked by
+    # the memory problems.
+    TIC_ERROR_MEMORY = 1
+
+    # Access was denied.  A common cause of this error on Windows is that
+    # another application has a handle open to the same device.
+    TIC_ERROR_ACCESS_DENIED = 2
+
+    # The device took too long to respond to a request or transfer data.
+    TIC_ERROR_TIMEOUT = 3
+
+    # The error might have been caused by the device being disconnected, but it
+    # is possible it was caused by something else.
+    TIC_ERROR_DEVICE_DISCONNECTED = 4
+
+
+class TicCommunicationException(Exception):
+    do_not_free: bool
+    message: str
+    codes: List[TicCommError]
+
+    def __init__(self, do_not_free: bool, message: str, codes: List[TicCommError]):
+        self.do_not_free = do_not_free
+        self.message = message
+        self.codes = codes
+
 # [T]ic [E]rror [D]ecoder
 def TED(func):
     @wraps(func)
     def func_wrapper(*args, **kwargs):
         _e_p = func(*args, **kwargs)
+
         if bool(_e_p):
             _e = cast(_e_p, POINTER(tic_error))
-            _logger = logging.getLogger('PyTic')
-            _logger.error(_e.contents.message)
-            return 1
-        else:
-            return 0
+            codes = [TicCommError(_e.contents.code_array[i]) for i in range(_e.contents.code_count)]
+            raise TicCommunicationException(bool(_e.contents.do_not_free), str(_e.contents.message), codes)
+
     return func_wrapper
 
 class PyTic(object):
@@ -118,12 +164,15 @@ class PyTic(object):
         self._dev_pp = POINTER(POINTER(tic_device))()
         e_p = self.ticlib.tic_list_connected_devices(byref(self._dev_pp), byref(self._devcnt))
         return e_p
+        
 
     @TED
     def _tic_handle_open(self):
         handle_p = POINTER(tic_handle)()
         e_p = self.ticlib.tic_handle_open(byref(self.device), byref(handle_p))
+        
         self.handle = handle_p[0]
+        
         return e_p
 
     def list_connected_device_serial_numbers(self):
@@ -145,7 +194,7 @@ class PyTic(object):
                 self._tic_handle_open()
                 self.variables = PyTic_Variables(self.handle, (self.usblib, self.ticlib))
                 self.settings = PyTic_Settings(self.handle, (self.usblib, self.ticlib), self.variables.product)
-                return 0
+                return
         if not self.device:
             self._logger.error("Serial number device not found.")
             raise ValueError("TIC serial number %r not found; options are %r." % (serial_number, self.list_connected_device_serial_numbers()))
@@ -179,38 +228,21 @@ class PyTic_Variables(object):
     def _update_tic_variables(self):
         e_p = self.ticlib.tic_get_variables(byref(self._device_handle), \
                                        byref(self._tic_variables_p), c_bool(True))
+
         self._tic_variables = self._tic_variables_p[0]
+
         return e_p
 
     def _get_tic_readonly_property(self, field, obj):
         self._update_tic_variables()
         value = getattr(self._tic_variables, field)
-        if field == "error_status" or field == "error_occurred":
-            self._convert_error_bitmask(value)
+        if field == "error_status" or field == "errors_occurred":
+            value = TicErrorStatus(value)
         return value
 
     def _get_pin_readonly_property(self, field, pin_num, obj):
         self._update_tic_variables()
         return getattr(self._tic_variables.pin_info[pin_num], field)
-
-    def _convert_error_bitmask(self, e_bit_mask):
-        ecodes = ["TIC_ERROR_INTENTIONALLY_DEENERGIZED",
-                  "TIC_ERROR_MOTOR_DRIVER_ERROR",
-                  "TIC_ERROR_LOW_VIN",
-                  "TIC_ERROR_KILL_SWITCH",
-                  "TIC_ERROR_REQUIRED_INPUT_INVALID",
-                  "TIC_ERROR_SERIAL_ERROR",
-                  "TIC_ERROR_COMMAND_TIMEOUT",
-                  "TIC_ERROR_SAFE_START_VIOLATION",
-                  "TIC_ERROR_ERR_LINE_HIGH",
-                  "TIC_ERROR_SERIAL_FRAMING",
-                  "TIC_ERROR_SERIAL_RX_OVERRUN",
-                  "TIC_ERROR_SERIAL_FORMAT",
-                  "TIC_ERROR_SERIAL_CRC",
-                  "TIC_ERROR_ENCODER_SKIP"]
-        for code in ecodes:
-            if ((e_bit_mask >> tc[code]) & 1):
-                self._logger.error(code)
 
 class PyTic_Settings(object):
     def __init__(self, device_handle, driver_handles, product):
